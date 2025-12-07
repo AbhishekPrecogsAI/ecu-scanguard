@@ -13,6 +13,7 @@ import Compliance from "./pages/Compliance";
 import SBOM from "./pages/SBOM";
 import Settings from "./pages/Settings";
 import IMRDashboard from "./pages/IMRDashboard";
+import TARADashboard from "./pages/TARADashboard";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -48,6 +49,7 @@ const AppRoutes = () => {
       <Route path="/compliance" element={<ProtectedRoute><Compliance /></ProtectedRoute>} />
       <Route path="/sbom" element={<ProtectedRoute><SBOM /></ProtectedRoute>} />
       <Route path="/imr" element={<ProtectedRoute><IMRDashboard /></ProtectedRoute>} />
+      <Route path="/tara" element={<ProtectedRoute><TARADashboard /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>

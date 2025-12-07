@@ -7,7 +7,9 @@ import {
   FileText, 
   Settings,
   Activity,
-  Database
+  Database,
+  AlertTriangle,
+  Target
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -16,6 +18,8 @@ const navItems = [
   { to: '/upload', icon: Upload, label: 'Upload Scan' },
   { to: '/scans', icon: FileSearch, label: 'All Scans' },
   { to: '/vulnerabilities', icon: Shield, label: 'Vulnerabilities' },
+  { to: '/imr', icon: AlertTriangle, label: 'IMR Dashboard', highlight: true },
+  { to: '/tara', icon: Target, label: 'TARA' },
   { to: '/compliance', icon: FileText, label: 'Compliance' },
   { to: '/sbom', icon: Database, label: 'SBOM' },
 ];
