@@ -239,13 +239,16 @@ export function useGenerateReport() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: async ({ scanId, format = 'json' }: { scanId: string; format?: 'json' | 'markdown' }) => {
+    mutationFn: async ({ scanId, format = 'json' }: { scanId: string; format?: 'json' | 'markdown' | 'pdf' }) => {
       const { data, error } = await supabase.functions.invoke('generate-report', {
-        body: { scanId, format },
+        body: { scanId, format: format === 'pdf' ? 'json' : format },
       });
       
       if (error) throw error;
-      return data;
+      
+      // Return content based on format
+      // The edge function returns raw content (string for markdown, object for JSON)
+      return { content: data, format };
     },
     onError: (error) => {
       toast({

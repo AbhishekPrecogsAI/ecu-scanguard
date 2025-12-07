@@ -1,11 +1,12 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Download, RefreshCw, Cpu, Calendar, Hash, HardDrive, Microchip, Loader2, Shield, Key, FileCode, ClipboardCheck } from 'lucide-react';
+import { ArrowLeft, Download, RefreshCw, Cpu, Calendar, Hash, HardDrive, Microchip, Loader2, Shield, Key, FileCode, FileText, FileDown } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { PipelineStatus } from '@/components/scan/PipelineStatus';
 import { ExecutiveSummary } from '@/components/scan/ExecutiveSummary';
 import { VulnerabilityList } from '@/components/scan/VulnerabilityList';
@@ -15,6 +16,7 @@ import { useScan, useVulnerabilities, useComplianceResults, useAnalysisLogs, use
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { toast } from '@/hooks/use-toast';
+import { jsPDF } from 'jspdf';
 import type { ScanStatus } from '@/types/scan';
 
 export default function ScanDetails() {
@@ -77,24 +79,107 @@ export default function ScanDetails() {
     };
   }, [id, queryClient]);
 
-  const handleDownloadReport = async () => {
+  const handleDownloadReport = async (format: 'markdown' | 'json' | 'pdf') => {
     if (!id) return;
     
     try {
-      const result = await generateReport.mutateAsync({ scanId: id, format: 'markdown' });
+      const result = await generateReport.mutateAsync({ scanId: id, format });
+      const ecuName = scan?.ecu_name || id;
       
-      // Create download
-      const blob = new Blob([result.content], { type: 'text/markdown' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `scan-report-${scan?.ecu_name || id}.md`;
-      a.click();
-      URL.revokeObjectURL(url);
+      if (format === 'pdf') {
+        // Generate PDF from JSON data
+        const reportData = typeof result.content === 'string' ? JSON.parse(result.content) : result.content;
+        const pdf = new jsPDF();
+        
+        // Title
+        pdf.setFontSize(20);
+        pdf.setTextColor(30, 30, 30);
+        pdf.text('ECU Vulnerability Scan Report', 20, 20);
+        
+        // Scan Info
+        pdf.setFontSize(12);
+        pdf.setTextColor(80, 80, 80);
+        pdf.text(`ECU: ${reportData.scan.ecu_name}`, 20, 35);
+        pdf.text(`Type: ${reportData.scan.ecu_type}`, 20, 42);
+        pdf.text(`Risk Score: ${reportData.scan.risk_score || 'N/A'}/100`, 20, 49);
+        pdf.text(`Generated: ${new Date().toLocaleString()}`, 20, 56);
+        
+        // Summary
+        pdf.setFontSize(14);
+        pdf.setTextColor(30, 30, 30);
+        pdf.text('Vulnerability Summary', 20, 70);
+        
+        pdf.setFontSize(10);
+        pdf.setTextColor(80, 80, 80);
+        const vulnBreakdown = reportData.summary.vulnerability_breakdown;
+        pdf.text(`Critical: ${vulnBreakdown.critical} | High: ${vulnBreakdown.high} | Medium: ${vulnBreakdown.medium} | Low: ${vulnBreakdown.low}`, 20, 80);
+        pdf.text(`Compliance Score: ${reportData.summary.compliance_score}%`, 20, 87);
+        
+        // Executive Summary
+        if (reportData.scan.executive_summary) {
+          pdf.setFontSize(14);
+          pdf.setTextColor(30, 30, 30);
+          pdf.text('Executive Summary', 20, 100);
+          
+          pdf.setFontSize(9);
+          pdf.setTextColor(80, 80, 80);
+          const splitSummary = pdf.splitTextToSize(reportData.scan.executive_summary, 170);
+          pdf.text(splitSummary, 20, 110);
+        }
+        
+        // Add new page for vulnerabilities
+        pdf.addPage();
+        pdf.setFontSize(14);
+        pdf.setTextColor(30, 30, 30);
+        pdf.text('Vulnerabilities', 20, 20);
+        
+        let yPos = 35;
+        reportData.vulnerabilities?.slice(0, 15).forEach((vuln: any, index: number) => {
+          if (yPos > 270) {
+            pdf.addPage();
+            yPos = 20;
+          }
+          
+          pdf.setFontSize(10);
+          pdf.setTextColor(
+            vuln.severity === 'critical' ? '#dc2626' : 
+            vuln.severity === 'high' ? '#ea580c' : 
+            vuln.severity === 'medium' ? '#ca8a04' : '#16a34a'
+          );
+          pdf.text(`${index + 1}. [${vuln.severity.toUpperCase()}] ${vuln.title}`, 20, yPos);
+          
+          pdf.setFontSize(8);
+          pdf.setTextColor(100, 100, 100);
+          const desc = pdf.splitTextToSize(vuln.description || 'No description', 170);
+          pdf.text(desc.slice(0, 2), 25, yPos + 6);
+          
+          yPos += 20;
+        });
+        
+        pdf.save(`scan-report-${ecuName}.pdf`);
+      } else if (format === 'markdown') {
+        const content = typeof result.content === 'string' ? result.content : JSON.stringify(result.content, null, 2);
+        const blob = new Blob([content], { type: 'text/markdown' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `scan-report-${ecuName}.md`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        const content = typeof result.content === 'string' ? result.content : JSON.stringify(result.content, null, 2);
+        const blob = new Blob([content], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `scan-report-${ecuName}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
       
       toast({
         title: 'Report downloaded',
-        description: 'Security report has been downloaded successfully.',
+        description: `Security report (${format.toUpperCase()}) has been downloaded.`,
       });
     } catch (error) {
       toast({
@@ -200,19 +285,36 @@ export default function ScanDetails() {
               <RefreshCw className="w-4 h-4 mr-2" />
               Re-scan
             </Button>
-            <Button 
-              size="sm" 
-              className="gap-2"
-              onClick={handleDownloadReport}
-              disabled={scan.status !== 'complete' || generateReport.isPending}
-            >
-              {generateReport.isPending ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Download className="w-4 h-4" />
-              )}
-              Download Report
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button 
+                  size="sm" 
+                  className="gap-2"
+                  disabled={scan.status !== 'complete' || generateReport.isPending}
+                >
+                  {generateReport.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Download className="w-4 h-4" />
+                  )}
+                  Download Report
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleDownloadReport('pdf')}>
+                  <FileDown className="w-4 h-4 mr-2" />
+                  Download as PDF
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleDownloadReport('markdown')}>
+                  <FileText className="w-4 h-4 mr-2" />
+                  Download as Markdown
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleDownloadReport('json')}>
+                  <FileCode className="w-4 h-4 mr-2" />
+                  Download as JSON
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
