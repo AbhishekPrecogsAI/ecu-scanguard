@@ -273,7 +273,18 @@ serve(async (req) => {
       message: 'Starting hybrid analysis: Static patterns + LLM vulnerability detection',
     });
 
-    const analysisResult = await analyzeBinaryWithLLM(fileContent, metadata, lovableApiKey);
+    const rawResult = await analyzeBinaryWithLLM(fileContent, metadata, lovableApiKey) as any;
+    
+    // Normalize response keys (LLM may return snake_case or camelCase)
+    const analysisResult = {
+      vulnerabilities: rawResult.vulnerabilities || [],
+      complianceResults: rawResult.complianceResults || rawResult.compliance_results || [],
+      sbomComponents: rawResult.sbomComponents || rawResult.sbom_components || [],
+      executiveSummary: rawResult.executiveSummary || rawResult.executive_summary || '',
+      riskScore: rawResult.riskScore || rawResult.risk_score || 50,
+    };
+    
+    console.log(`LLM analysis returned: ${analysisResult.vulnerabilities.length} vulns, ${analysisResult.complianceResults.length} compliance results`);
 
     // Stage 4: Enriching vulnerabilities
     await updateScanStatus(supabase, scanId, 'enriching', 75);
