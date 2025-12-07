@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { CheckCircle2, XCircle, AlertCircle, FileText, Download, Plus, ChevronRight, Shield, File, Trash2, RefreshCw, Eye, Settings, ListChecks, TrendingUp, Calendar } from 'lucide-react';
+import { CheckCircle2, XCircle, AlertCircle, FileText, Download, Plus, ChevronRight, Shield, File, Trash2, RefreshCw, Eye, Settings, ListChecks, TrendingUp, Calendar, Palette } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { BrandingSettings } from '@/components/report/BrandingSettings';
+import { generatePDFReport, downloadPDF, type ReportBranding, type ReportData } from '@/lib/pdfReportGenerator';
 
 const frameworks = ['MISRA C:2023', 'ISO 21434:2021', 'AUTOSAR R22-11', 'ISO 26262:2018', 'UNECE WP.29'];
 
@@ -42,6 +45,13 @@ export default function Compliance() {
     includeRemediation: true,
     includeSBOM: false,
   });
+  const [branding, setBranding] = useState<Partial<ReportBranding>>({
+    companyName: 'ECU Security Scanner',
+    primaryColor: '#3b82f6',
+    secondaryColor: '#1e40af',
+    footerText: 'Confidential - For Internal Use Only',
+  });
+  const [isGenerating, setIsGenerating] = useState(false);
   
   const { data: scans = [] } = useScans();
   
@@ -103,10 +113,88 @@ export default function Compliance() {
   const uneceScore = overallUNECE.total > 0 ? Math.round((overallUNECE.passed / overallUNECE.total) * 100) : 0;
   const iso21434Score = overallISO21434.total > 0 ? Math.round((overallISO21434.passed / overallISO21434.total) * 100) : 0;
 
-  const handleGenerateReport = () => {
-    toast({ title: 'Report Generated', description: 'Your compliance report has been generated and is ready for download.' });
-    setIsWizardOpen(false);
-    setWizardStep(1);
+  const handleGenerateReport = async () => {
+    setIsGenerating(true);
+    try {
+      // Fetch vulnerabilities for selected ECUs
+      const scanIds = wizardData.selectedEcus.length > 0 ? wizardData.selectedEcus : scans.filter(s => s.status === 'complete').map(s => s.id);
+      
+      const { data: vulnerabilities = [] } = await supabase
+        .from('vulnerabilities')
+        .select('*')
+        .in('scan_id', scanIds);
+
+      const { data: sbomComponents = [] } = await supabase
+        .from('sbom_components')
+        .select('*')
+        .in('scan_id', scanIds);
+
+      // Use the first selected scan for scan details, or first complete scan
+      const primaryScan = scans.find(s => scanIds.includes(s.id)) || scans[0];
+      
+      if (!primaryScan) {
+        toast({ title: 'Error', description: 'No scan data available for report generation.', variant: 'destructive' });
+        return;
+      }
+
+      const reportData: ReportData = {
+        scan: {
+          id: primaryScan.id,
+          ecu_name: primaryScan.ecu_name,
+          ecu_type: primaryScan.ecu_type,
+          version: primaryScan.version || undefined,
+          manufacturer: primaryScan.manufacturer || undefined,
+          architecture: primaryScan.architecture || undefined,
+          file_name: primaryScan.file_name,
+          file_hash: primaryScan.file_hash || undefined,
+          risk_score: primaryScan.risk_score || undefined,
+          executive_summary: primaryScan.executive_summary || undefined,
+          created_at: primaryScan.created_at || undefined,
+          completed_at: primaryScan.completed_at || undefined,
+        },
+        vulnerabilities: vulnerabilities.map(v => ({
+          title: v.title,
+          severity: v.severity,
+          cve_id: v.cve_id || undefined,
+          cwe_id: v.cwe_id || undefined,
+          cvss_score: v.cvss_score || undefined,
+          description: v.description || undefined,
+          affected_component: v.affected_component || undefined,
+          remediation: v.remediation || undefined,
+        })),
+        complianceResults: complianceResults.map(c => ({
+          framework: c.framework,
+          rule_id: c.rule_id,
+          status: c.status || 'warning',
+          rule_description: c.rule_description || undefined,
+        })),
+        sbomComponents: sbomComponents.map(s => ({
+          component_name: s.component_name,
+          version: s.version || undefined,
+          license: s.license || undefined,
+        })),
+        options: {
+          includeExecutiveSummary: wizardData.includeExecutiveSummary,
+          includeTechnicalDetails: wizardData.includeTechnicalDetails,
+          includeRemediation: wizardData.includeRemediation,
+          includeSBOM: wizardData.includeSBOM,
+          frameworks: wizardData.frameworks,
+        },
+      };
+
+      const pdf = generatePDFReport(reportData, branding);
+      const filename = `compliance-report-${primaryScan.ecu_name.replace(/\s+/g, '-')}-${format(new Date(), 'yyyy-MM-dd')}.pdf`;
+      downloadPDF(pdf, filename);
+
+      toast({ title: 'Report Generated', description: 'Your compliance report has been downloaded.' });
+      setIsWizardOpen(false);
+      setWizardStep(1);
+    } catch (error) {
+      console.error('Report generation error:', error);
+      toast({ title: 'Error', description: 'Failed to generate report. Please try again.', variant: 'destructive' });
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   if (isLoading) {
@@ -242,36 +330,48 @@ export default function Compliance() {
                 {wizardStep === 3 && (
                   <div className="space-y-4">
                     <h4 className="font-medium">Step 3: Report Customization</h4>
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <Label>Include Executive Summary</Label>
-                          <p className="text-xs text-muted-foreground">High-level overview for management</p>
+                    <Tabs defaultValue="content" className="w-full">
+                      <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="content">Content Options</TabsTrigger>
+                        <TabsTrigger value="branding" className="gap-1">
+                          <Palette className="w-3 h-3" />
+                          Branding
+                        </TabsTrigger>
+                      </TabsList>
+                      <TabsContent value="content" className="space-y-4 mt-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <Label>Include Executive Summary</Label>
+                            <p className="text-xs text-muted-foreground">High-level overview for management</p>
+                          </div>
+                          <Switch checked={wizardData.includeExecutiveSummary} onCheckedChange={(v) => setWizardData({ ...wizardData, includeExecutiveSummary: v })} />
                         </div>
-                        <Switch checked={wizardData.includeExecutiveSummary} onCheckedChange={(v) => setWizardData({ ...wizardData, includeExecutiveSummary: v })} />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <Label>Include Technical Details</Label>
-                          <p className="text-xs text-muted-foreground">Detailed vulnerability analysis</p>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <Label>Include Technical Details</Label>
+                            <p className="text-xs text-muted-foreground">Detailed vulnerability analysis</p>
+                          </div>
+                          <Switch checked={wizardData.includeTechnicalDetails} onCheckedChange={(v) => setWizardData({ ...wizardData, includeTechnicalDetails: v })} />
                         </div>
-                        <Switch checked={wizardData.includeTechnicalDetails} onCheckedChange={(v) => setWizardData({ ...wizardData, includeTechnicalDetails: v })} />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <Label>Include Remediation Guidance</Label>
-                          <p className="text-xs text-muted-foreground">Fix recommendations and code examples</p>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <Label>Include Remediation Guidance</Label>
+                            <p className="text-xs text-muted-foreground">Fix recommendations and code examples</p>
+                          </div>
+                          <Switch checked={wizardData.includeRemediation} onCheckedChange={(v) => setWizardData({ ...wizardData, includeRemediation: v })} />
                         </div>
-                        <Switch checked={wizardData.includeRemediation} onCheckedChange={(v) => setWizardData({ ...wizardData, includeRemediation: v })} />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <Label>Include SBOM</Label>
-                          <p className="text-xs text-muted-foreground">Software Bill of Materials</p>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <Label>Include SBOM</Label>
+                            <p className="text-xs text-muted-foreground">Software Bill of Materials</p>
+                          </div>
+                          <Switch checked={wizardData.includeSBOM} onCheckedChange={(v) => setWizardData({ ...wizardData, includeSBOM: v })} />
                         </div>
-                        <Switch checked={wizardData.includeSBOM} onCheckedChange={(v) => setWizardData({ ...wizardData, includeSBOM: v })} />
-                      </div>
-                    </div>
+                      </TabsContent>
+                      <TabsContent value="branding" className="mt-4">
+                        <BrandingSettings branding={branding} onChange={setBranding} />
+                      </TabsContent>
+                    </Tabs>
                   </div>
                 )}
 
@@ -297,11 +397,23 @@ export default function Compliance() {
                 )}
 
                 <div className="flex justify-between mt-6">
-                  <Button variant="outline" onClick={() => setWizardStep(Math.max(1, wizardStep - 1))} disabled={wizardStep === 1}>Back</Button>
+                  <Button variant="outline" onClick={() => setWizardStep(Math.max(1, wizardStep - 1))} disabled={wizardStep === 1 || isGenerating}>Back</Button>
                   {wizardStep < 4 ? (
                     <Button onClick={() => setWizardStep(wizardStep + 1)}>Continue</Button>
                   ) : (
-                    <Button onClick={handleGenerateReport} className="gap-2"><Download className="w-4 h-4" />Generate PDF Report</Button>
+                    <Button onClick={handleGenerateReport} disabled={isGenerating} className="gap-2">
+                      {isGenerating ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          <Download className="w-4 h-4" />
+                          Generate PDF Report
+                        </>
+                      )}
+                    </Button>
                   )}
                 </div>
               </DialogContent>
