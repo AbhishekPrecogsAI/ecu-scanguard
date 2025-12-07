@@ -12,10 +12,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { mockVulnerabilities, mockScans } from '@/data/mockData';
+import { useVulnerabilities, useScans } from '@/hooks/useScans';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { Vulnerability, VulnerabilityStatus } from '@/types/scan';
+import { Skeleton } from '@/components/ui/skeleton';
+
+type VulnerabilityStatus = 'new' | 'reopened' | 'fixed' | 'false_positive' | 'risk_accepted';
 
 const statusColors: Record<VulnerabilityStatus, string> = {
   new: 'bg-primary/20 text-primary border-primary/30',
@@ -30,20 +32,46 @@ export default function Vulnerabilities() {
   const [severityFilter, setSeverityFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
 
-  const filteredVulns = mockVulnerabilities.filter((vuln) => {
+  const { data: vulnerabilities = [], isLoading } = useVulnerabilities();
+  const { data: scans = [] } = useScans();
+
+  const filteredVulns = vulnerabilities.filter((vuln) => {
     const matchesSearch = 
       vuln.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      vuln.cveId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      vuln.cweId.toLowerCase().includes(searchQuery.toLowerCase());
+      vuln.cve_id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      vuln.cwe_id?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesSeverity = severityFilter === 'all' || vuln.severity === severityFilter;
     const matchesStatus = statusFilter === 'all' || vuln.status === statusFilter;
     return matchesSearch && matchesSeverity && matchesStatus;
   });
 
   const getEcuName = (scanId: string) => {
-    const scan = mockScans.find((s) => s.id === scanId);
-    return scan?.ecuName || 'Unknown ECU';
+    const scan = scans.find((s) => s.id === scanId);
+    return scan?.ecu_name || 'Unknown ECU';
   };
+
+  const severityCounts = {
+    critical: vulnerabilities.filter((v) => v.severity === 'critical').length,
+    high: vulnerabilities.filter((v) => v.severity === 'high').length,
+    medium: vulnerabilities.filter((v) => v.severity === 'medium').length,
+    low: vulnerabilities.filter((v) => v.severity === 'low').length,
+  };
+
+  if (isLoading) {
+    return (
+      <AppLayout>
+        <div className="space-y-6">
+          <Skeleton className="h-20 w-full" />
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map((i) => (
+              <Skeleton key={i} className="h-24" />
+            ))}
+          </div>
+          <Skeleton className="h-96" />
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>
@@ -65,25 +93,25 @@ export default function Vulnerabilities() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="glass-card rounded-lg border border-destructive/30 bg-destructive/5 p-4">
             <div className="text-2xl font-bold text-destructive font-mono">
-              {mockVulnerabilities.filter((v) => v.severity === 'critical').length}
+              {severityCounts.critical}
             </div>
             <div className="text-sm text-muted-foreground">Critical</div>
           </div>
           <div className="glass-card rounded-lg border border-warning/30 bg-warning/5 p-4">
             <div className="text-2xl font-bold text-warning font-mono">
-              {mockVulnerabilities.filter((v) => v.severity === 'high').length}
+              {severityCounts.high}
             </div>
             <div className="text-sm text-muted-foreground">High</div>
           </div>
           <div className="glass-card rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-4">
             <div className="text-2xl font-bold text-yellow-400 font-mono">
-              {mockVulnerabilities.filter((v) => v.severity === 'medium').length}
+              {severityCounts.medium}
             </div>
             <div className="text-sm text-muted-foreground">Medium</div>
           </div>
           <div className="glass-card rounded-lg border border-success/30 bg-success/5 p-4">
             <div className="text-2xl font-bold text-success font-mono">
-              {mockVulnerabilities.filter((v) => v.severity === 'low').length}
+              {severityCounts.low}
             </div>
             <div className="text-sm text-muted-foreground">Low</div>
           </div>
@@ -134,81 +162,92 @@ export default function Vulnerabilities() {
 
         {/* Vulnerabilities Table */}
         <div className="glass-card rounded-xl border border-border overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-border bg-muted/30">
-                  <th className="text-left p-4 text-sm font-medium text-muted-foreground">Severity</th>
-                  <th className="text-left p-4 text-sm font-medium text-muted-foreground">CVE / CWE</th>
-                  <th className="text-left p-4 text-sm font-medium text-muted-foreground">Title</th>
-                  <th className="text-left p-4 text-sm font-medium text-muted-foreground">Affected ECU</th>
-                  <th className="text-left p-4 text-sm font-medium text-muted-foreground">Status</th>
-                  <th className="text-left p-4 text-sm font-medium text-muted-foreground">CVSS</th>
-                  <th className="text-left p-4 text-sm font-medium text-muted-foreground">Detected</th>
-                  <th className="text-right p-4 text-sm font-medium text-muted-foreground">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {filteredVulns.map((vuln, index) => (
-                  <tr 
-                    key={vuln.id}
-                    className={cn(
-                      "hover:bg-muted/30 transition-colors animate-fade-in",
-                    )}
-                    style={{ animationDelay: `${index * 30}ms` }}
-                  >
-                    <td className="p-4">
-                      <SeverityBadge severity={vuln.severity} />
-                    </td>
-                    <td className="p-4">
-                      <div className="space-y-1">
-                        {vuln.cveId && (
-                          <span className="block text-sm font-mono text-primary">{vuln.cveId}</span>
-                        )}
-                        <span className="block text-xs font-mono text-muted-foreground">{vuln.cweId}</span>
-                      </div>
-                    </td>
-                    <td className="p-4 max-w-xs">
-                      <div className="font-medium text-foreground truncate">{vuln.title}</div>
-                      <div className="text-xs text-muted-foreground truncate">{vuln.affectedComponent}</div>
-                    </td>
-                    <td className="p-4">
-                      <span className="text-sm text-muted-foreground">{getEcuName(vuln.scanId)}</span>
-                    </td>
-                    <td className="p-4">
-                      <Badge 
-                        variant="outline" 
-                        className={cn("text-xs", statusColors[vuln.status])}
-                      >
-                        {vuln.status.replace('_', ' ')}
-                      </Badge>
-                    </td>
-                    <td className="p-4">
-                      <span className="text-lg font-bold font-mono text-foreground">{vuln.cvssScore.toFixed(1)}</span>
-                    </td>
-                    <td className="p-4">
-                      <span className="text-sm text-muted-foreground">
-                        {format(vuln.createdAt, 'MMM d, yyyy')}
-                      </span>
-                    </td>
-                    <td className="p-4">
-                      <div className="flex items-center justify-end gap-1">
-                        {vuln.cveId && (
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <ExternalLink className="w-4 h-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {filteredVulns.length === 0 && (
+          {filteredVulns.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">
-              No vulnerabilities found matching your criteria.
+              {vulnerabilities.length === 0 
+                ? 'No vulnerabilities found. Upload and scan an ECU binary to detect vulnerabilities.'
+                : 'No vulnerabilities found matching your criteria.'}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-border bg-muted/30">
+                    <th className="text-left p-4 text-sm font-medium text-muted-foreground">Severity</th>
+                    <th className="text-left p-4 text-sm font-medium text-muted-foreground">CVE / CWE</th>
+                    <th className="text-left p-4 text-sm font-medium text-muted-foreground">Title</th>
+                    <th className="text-left p-4 text-sm font-medium text-muted-foreground">Affected ECU</th>
+                    <th className="text-left p-4 text-sm font-medium text-muted-foreground">Status</th>
+                    <th className="text-left p-4 text-sm font-medium text-muted-foreground">CVSS</th>
+                    <th className="text-left p-4 text-sm font-medium text-muted-foreground">Detected</th>
+                    <th className="text-right p-4 text-sm font-medium text-muted-foreground">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {filteredVulns.map((vuln, index) => (
+                    <tr 
+                      key={vuln.id}
+                      className={cn(
+                        "hover:bg-muted/30 transition-colors animate-fade-in",
+                      )}
+                      style={{ animationDelay: `${index * 30}ms` }}
+                    >
+                      <td className="p-4">
+                        <SeverityBadge severity={vuln.severity} />
+                      </td>
+                      <td className="p-4">
+                        <div className="space-y-1">
+                          {vuln.cve_id && (
+                            <span className="block text-sm font-mono text-primary">{vuln.cve_id}</span>
+                          )}
+                          {vuln.cwe_id && (
+                            <span className="block text-xs font-mono text-muted-foreground">{vuln.cwe_id}</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="p-4 max-w-xs">
+                        <div className="font-medium text-foreground truncate">{vuln.title}</div>
+                        <div className="text-xs text-muted-foreground truncate">{vuln.affected_component}</div>
+                      </td>
+                      <td className="p-4">
+                        <span className="text-sm text-muted-foreground">{getEcuName(vuln.scan_id)}</span>
+                      </td>
+                      <td className="p-4">
+                        <Badge 
+                          variant="outline" 
+                          className={cn("text-xs", statusColors[(vuln.status || 'new') as VulnerabilityStatus])}
+                        >
+                          {(vuln.status || 'new').replace('_', ' ')}
+                        </Badge>
+                      </td>
+                      <td className="p-4">
+                        <span className="text-lg font-bold font-mono text-foreground">
+                          {vuln.cvss_score ? Number(vuln.cvss_score).toFixed(1) : '—'}
+                        </span>
+                      </td>
+                      <td className="p-4">
+                        <span className="text-sm text-muted-foreground">
+                          {vuln.created_at ? format(new Date(vuln.created_at), 'MMM d, yyyy') : '—'}
+                        </span>
+                      </td>
+                      <td className="p-4">
+                        <div className="flex items-center justify-end gap-1">
+                          {vuln.cve_id && (
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8"
+                              onClick={() => window.open(`https://nvd.nist.gov/vuln/detail/${vuln.cve_id}`, '_blank')}
+                            >
+                              <ExternalLink className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>

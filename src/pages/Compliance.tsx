@@ -1,12 +1,22 @@
 import { CheckCircle2, XCircle, AlertCircle, FileText } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Badge } from '@/components/ui/badge';
-import { mockComplianceResults, mockScans } from '@/data/mockData';
+import { useScans } from '@/hooks/useScans';
+import { useComplianceResults } from '@/hooks/useScans';
 import { cn } from '@/lib/utils';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const frameworks = ['MISRA C:2012', 'ISO 21434', 'AUTOSAR', 'ISO 26262'];
 
 export default function Compliance() {
+  const { data: scans = [] } = useScans();
+  
+  // Get compliance results from all completed scans
+  const completedScanIds = scans.filter(s => s.status === 'complete').map(s => s.id);
+  
+  // We'll fetch compliance results for all scans by not passing a specific scanId
+  const { data: complianceResults = [], isLoading } = useComplianceResults(completedScanIds[0]);
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'pass':
@@ -30,7 +40,7 @@ export default function Compliance() {
   };
 
   const getFrameworkStats = (framework: string) => {
-    const results = mockComplianceResults.filter((r) => r.framework === framework);
+    const results = complianceResults.filter((r) => r.framework === framework);
     return {
       passed: results.filter((r) => r.status === 'pass').length,
       failed: results.filter((r) => r.status === 'fail').length,
@@ -38,6 +48,21 @@ export default function Compliance() {
       total: results.length,
     };
   };
+
+  if (isLoading) {
+    return (
+      <AppLayout>
+        <div className="space-y-6">
+          <Skeleton className="h-20 w-full" />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map((i) => (
+              <Skeleton key={i} className="h-48" />
+            ))}
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>
@@ -116,52 +141,58 @@ export default function Compliance() {
             <p className="text-sm text-muted-foreground">Detailed rule-by-rule analysis</p>
           </div>
           
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-border bg-muted/30">
-                  <th className="text-left p-4 text-sm font-medium text-muted-foreground">Framework</th>
-                  <th className="text-left p-4 text-sm font-medium text-muted-foreground">Rule ID</th>
-                  <th className="text-left p-4 text-sm font-medium text-muted-foreground">Description</th>
-                  <th className="text-left p-4 text-sm font-medium text-muted-foreground">Status</th>
-                  <th className="text-left p-4 text-sm font-medium text-muted-foreground">Details</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {mockComplianceResults.map((result, index) => (
-                  <tr 
-                    key={result.id}
-                    className={cn(
-                      "hover:bg-muted/30 transition-colors animate-fade-in",
-                    )}
-                    style={{ animationDelay: `${index * 30}ms` }}
-                  >
-                    <td className="p-4">
-                      <span className="text-sm font-medium text-foreground">{result.framework}</span>
-                    </td>
-                    <td className="p-4">
-                      <span className="text-sm font-mono text-primary">{result.ruleId}</span>
-                    </td>
-                    <td className="p-4 max-w-md">
-                      <span className="text-sm text-muted-foreground">{result.ruleDescription}</span>
-                    </td>
-                    <td className="p-4">
-                      <Badge 
-                        variant="outline" 
-                        className={cn("gap-1", getStatusBadge(result.status))}
-                      >
-                        {getStatusIcon(result.status)}
-                        <span className="capitalize">{result.status}</span>
-                      </Badge>
-                    </td>
-                    <td className="p-4 max-w-xs">
-                      <span className="text-sm text-muted-foreground">{result.details || '—'}</span>
-                    </td>
+          {complianceResults.length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground">
+              No compliance results yet. Upload and scan an ECU binary to generate compliance reports.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-border bg-muted/30">
+                    <th className="text-left p-4 text-sm font-medium text-muted-foreground">Framework</th>
+                    <th className="text-left p-4 text-sm font-medium text-muted-foreground">Rule ID</th>
+                    <th className="text-left p-4 text-sm font-medium text-muted-foreground">Description</th>
+                    <th className="text-left p-4 text-sm font-medium text-muted-foreground">Status</th>
+                    <th className="text-left p-4 text-sm font-medium text-muted-foreground">Details</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {complianceResults.map((result, index) => (
+                    <tr 
+                      key={result.id}
+                      className={cn(
+                        "hover:bg-muted/30 transition-colors animate-fade-in",
+                      )}
+                      style={{ animationDelay: `${index * 30}ms` }}
+                    >
+                      <td className="p-4">
+                        <span className="text-sm font-medium text-foreground">{result.framework}</span>
+                      </td>
+                      <td className="p-4">
+                        <span className="text-sm font-mono text-primary">{result.rule_id}</span>
+                      </td>
+                      <td className="p-4 max-w-md">
+                        <span className="text-sm text-muted-foreground">{result.rule_description}</span>
+                      </td>
+                      <td className="p-4">
+                        <Badge 
+                          variant="outline" 
+                          className={cn("gap-1", getStatusBadge(result.status || 'pass'))}
+                        >
+                          {getStatusIcon(result.status || 'pass')}
+                          <span className="capitalize">{result.status}</span>
+                        </Badge>
+                      </td>
+                      <td className="p-4 max-w-xs">
+                        <span className="text-sm text-muted-foreground">{result.details || '—'}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
     </AppLayout>
