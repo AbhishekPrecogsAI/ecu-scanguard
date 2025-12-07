@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { CheckCircle2, XCircle, AlertCircle, FileText, Download, Plus, Upload, ChevronRight, Shield, File, Trash2, RefreshCw, Eye, Settings, ListChecks, TrendingUp, Calendar } from 'lucide-react';
+import { CheckCircle2, XCircle, AlertCircle, FileText, Download, Plus, ChevronRight, Shield, File, Trash2, RefreshCw, Eye, Settings, ListChecks, TrendingUp, Calendar } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ScanSelector } from '@/components/ui/scan-selector';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
