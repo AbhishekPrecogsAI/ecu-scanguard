@@ -12,6 +12,7 @@ import Vulnerabilities from "./pages/Vulnerabilities";
 import Compliance from "./pages/Compliance";
 import SBOM from "./pages/SBOM";
 import Settings from "./pages/Settings";
+import IMRDashboard from "./pages/IMRDashboard";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -46,6 +47,7 @@ const AppRoutes = () => {
       <Route path="/vulnerabilities" element={<ProtectedRoute><Vulnerabilities /></ProtectedRoute>} />
       <Route path="/compliance" element={<ProtectedRoute><Compliance /></ProtectedRoute>} />
       <Route path="/sbom" element={<ProtectedRoute><SBOM /></ProtectedRoute>} />
+      <Route path="/imr" element={<ProtectedRoute><IMRDashboard /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
