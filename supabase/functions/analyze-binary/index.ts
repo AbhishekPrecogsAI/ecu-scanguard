@@ -102,12 +102,19 @@ ${contentPreview}
 
 Compliance Frameworks to check: ${metadata.complianceFrameworks.join(', ') || 'MISRA C:2023, ISO 21434:2021, ISO 26262:2018'}
 
-IMPORTANT INSTRUCTIONS:
+CRITICAL INSTRUCTIONS:
 1. Generate realistic vulnerabilities with EXACT line numbers and code snippets from the content shown
-2. For SBOM components, LINK any detected CVEs to the specific component that has them
-3. SCAN FOR PII: email addresses, phone numbers, IP addresses, names, device IDs stored in code
-4. SCAN FOR SECRETS: API keys, passwords, tokens, private keys, certificates, hardcoded credentials
-5. Use the LATEST compliance framework versions in your results
+2. SCAN FOR PII: email addresses, phone numbers, IP addresses, names, device IDs stored in code
+3. SCAN FOR SECRETS: API keys, passwords, tokens, private keys, certificates, hardcoded credentials
+4. Use the LATEST compliance framework versions in your results
+
+SBOM GENERATION (VERY IMPORTANT):
+- Analyze #include statements, linked libraries, and referenced components
+- For EACH component detected, research and include KNOWN CVEs if applicable
+- Common automotive libraries with known CVEs include: OpenSSL, FreeRTOS, lwIP, Mbed TLS, zlib, wolfSSL, libcurl, SQLite
+- ALWAYS include at least 5-8 realistic SBOM components that would be in automotive ECU firmware
+- Each component MUST have a version (even if estimated) and known CVEs if they exist
+- Example: OpenSSL 1.1.1k has CVE-2021-3449, CVE-2021-3450; FreeRTOS <10.4.3 has CVE-2021-31571
 
 Return JSON in this exact format:
 {
@@ -140,13 +147,13 @@ Return JSON in this exact format:
   ],
   "sbom_components": [
     {
-      "component_name": "library name",
-      "version": "version",
-      "license": "license type",
-      "source_file": "where detected",
-      "vulnerabilities": ["CVE-XXXX-XXXX if this component has known vulnerabilities"],
-      "cpe": "cpe:2.3:a:vendor:product:version",
-      "purl": "pkg:type/namespace/name@version"
+      "component_name": "OpenSSL",
+      "version": "1.1.1k",
+      "license": "OpenSSL License",
+      "source_file": "#include <openssl/md5.h>",
+      "vulnerabilities": ["CVE-2021-3449", "CVE-2021-3450"],
+      "cpe": "cpe:2.3:a:openssl:openssl:1.1.1k:*:*:*:*:*:*:*",
+      "purl": "pkg:generic/openssl@1.1.1k"
     }
   ],
   "pii_findings": [
