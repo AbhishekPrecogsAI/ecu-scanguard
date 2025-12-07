@@ -8,11 +8,17 @@ import { MetadataForm } from '@/components/upload/MetadataForm';
 import { Button } from '@/components/ui/button';
 import { ScanMetadata } from '@/types/scan';
 import { toast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
+import { useCreateScan, useStartAnalysis } from '@/hooks/useScans';
 
 export default function Upload() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const createScan = useCreateScan();
+  const startAnalysis = useStartAnalysis();
 
   const form = useForm<ScanMetadata>({
     defaultValues: {
@@ -22,9 +28,9 @@ export default function Upload() {
       manufacturer: '',
       platform: '',
       priority: 'medium',
-      architecture: 'Unknown',
+      architecture: 'ARM',
       enableDeepAnalysis: false,
-      complianceFrameworks: ['misra-c', 'iso-21434'],
+      complianceFrameworks: ['MISRA C', 'ISO 21434'],
     },
   });
 
@@ -38,18 +44,78 @@ export default function Upload() {
       return;
     }
 
+    if (!user) {
+      toast({
+        title: 'Not authenticated',
+        description: 'Please sign in to upload files.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsSubmitting(true);
 
-    // Simulate upload delay
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    try {
+      // Read file as base64
+      const fileContent = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const base64 = (reader.result as string).split(',')[1];
+          resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(selectedFile);
+      });
 
-    toast({
-      title: 'Scan queued successfully',
-      description: `${data.ecuName} has been queued for analysis.`,
-    });
+      // Create scan record in database
+      const scan = await createScan.mutateAsync({
+        user_id: user.id,
+        ecu_name: data.ecuName,
+        ecu_type: data.ecuType,
+        version: data.version || null,
+        manufacturer: data.manufacturer || null,
+        platform: data.platform || null,
+        file_name: selectedFile.name,
+        file_size: selectedFile.size,
+        architecture: data.architecture,
+        deep_analysis: data.enableDeepAnalysis,
+        compliance_frameworks: data.complianceFrameworks,
+        status: 'queued',
+        progress: 0,
+      });
 
-    setIsSubmitting(false);
-    navigate('/scans/1'); // Navigate to mock scan
+      toast({
+        title: 'Scan created',
+        description: `${data.ecuName} is being analyzed...`,
+      });
+
+      // Start analysis in background (don't await)
+      startAnalysis.mutate({
+        scanId: scan.id,
+        fileContent,
+        fileName: selectedFile.name,
+        metadata: {
+          ecuName: data.ecuName,
+          ecuType: data.ecuType,
+          version: data.version,
+          manufacturer: data.manufacturer,
+          architecture: data.architecture,
+          deepAnalysis: data.enableDeepAnalysis || false,
+          complianceFrameworks: data.complianceFrameworks,
+        },
+      });
+
+      // Navigate to scan details
+      navigate(`/scans/${scan.id}`);
+    } catch (error) {
+      toast({
+        title: 'Upload failed',
+        description: error instanceof Error ? error.message : 'An error occurred',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -91,15 +157,15 @@ export default function Upload() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-muted-foreground">
               <div className="flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-                Ghidra Decompilation
+                Binary Parsing
               </div>
               <div className="flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-                Semgrep Analysis
+                Static Analysis
               </div>
               <div className="flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-                YARA Pattern Matching
+                CVE Matching
               </div>
               <div className="flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-primary" />
