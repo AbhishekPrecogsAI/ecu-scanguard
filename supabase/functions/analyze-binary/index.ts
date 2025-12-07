@@ -33,33 +33,61 @@ async function updateScanStatus(supabase: any, scanId: string, status: string, p
 
 async function analyzeBinaryWithLLM(
   fileContent: string,
+  fileName: string,
   metadata: AnalysisRequest['metadata'],
   apiKey: string
 ): Promise<{
   vulnerabilities: any[];
   complianceResults: any[];
   sbomComponents: any[];
+  piiFindings: any[];
+  secretFindings: any[];
   executiveSummary: string;
   riskScore: number;
 }> {
-  // Decode base64 to get binary info
-  const binaryData = atob(fileContent.slice(0, 2000)); // First chunk for analysis
-  const hexPreview = Array.from(binaryData.slice(0, 500))
-    .map(c => c.charCodeAt(0).toString(16).padStart(2, '0'))
-    .join(' ');
+  // Decode base64 to get content
+  let contentPreview: string;
+  let isTextFile = false;
+  
+  const textExtensions = ['.c', '.h', '.cpp', '.hpp', '.arxml', '.xml', '.txt', '.json'];
+  isTextFile = textExtensions.some(ext => fileName.toLowerCase().endsWith(ext));
+  
+  if (isTextFile) {
+    // For text files, decode and show actual content
+    try {
+      contentPreview = atob(fileContent.slice(0, 8000));
+    } catch {
+      contentPreview = fileContent.slice(0, 4000);
+    }
+  } else {
+    // For binary files, show hex
+    const binaryData = atob(fileContent.slice(0, 2000));
+    contentPreview = Array.from(binaryData.slice(0, 500))
+      .map(c => c.charCodeAt(0).toString(16).padStart(2, '0'))
+      .join(' ');
+  }
 
-  const systemPrompt = `You are an expert automotive ECU security analyst specializing in embedded systems vulnerability detection. You analyze binary firmware files for security vulnerabilities, focusing on:
-- Buffer overflows and memory corruption
-- Hardcoded credentials and cryptographic keys
-- CAN bus security issues
-- Authentication bypasses
-- Unsafe flash operations
-- MISRA C violations
-- ISO 26262 and ISO 21434 compliance issues
+  const systemPrompt = `You are an expert automotive ECU security analyst with deep expertise in:
+- Embedded systems vulnerability detection (buffer overflows, memory corruption, race conditions)
+- Hardcoded credentials, API keys, tokens, and cryptographic key detection
+- PII (Personal Identifiable Information) detection in firmware and code
+- CAN/LIN/FlexRay bus security analysis
+- Authentication and authorization bypass detection
+- Unsafe memory/flash operations
+- Supply chain component vulnerability tracking
+
+COMPLIANCE FRAMEWORKS (use LATEST versions):
+- MISRA C:2023 (Amendment 3) - C coding safety rules
+- ISO/SAE 21434:2021 - Automotive cybersecurity engineering
+- ISO 26262:2018 (2nd Edition) - Functional safety
+- AUTOSAR R22-11 - Software architecture standard
+- UNECE WP.29 R155 - Vehicle cybersecurity regulation
+- UNECE WP.29 R156 - Software update management
+- OWASP Embedded Top 10 - Embedded security risks
 
 Respond ONLY with valid JSON, no markdown or explanations.`;
 
-  const analysisPrompt = `Analyze this ${metadata.architecture} ECU binary for security vulnerabilities:
+  const analysisPrompt = `Analyze this ${metadata.architecture} ECU ${isTextFile ? 'source file' : 'binary'} for security vulnerabilities:
 
 ECU Details:
 - Name: ${metadata.ecuName}
@@ -67,18 +95,19 @@ ECU Details:
 - Version: ${metadata.version || 'Unknown'}
 - Manufacturer: ${metadata.manufacturer || 'Unknown'}
 - Architecture: ${metadata.architecture}
+- File: ${fileName}
 
-Binary Header (hex):
-${hexPreview}
+${isTextFile ? 'Source Code Content:' : 'Binary Header (hex):'}
+${contentPreview}
 
-Compliance Frameworks to check: ${metadata.complianceFrameworks.join(', ') || 'MISRA C, ISO 21434'}
+Compliance Frameworks to check: ${metadata.complianceFrameworks.join(', ') || 'MISRA C:2023, ISO 21434:2021, ISO 26262:2018'}
 
-Generate a realistic security analysis with:
-1. 3-8 vulnerabilities with varying severities (critical, high, medium, low)
-2. 5-10 compliance check results
-3. 5-8 SBOM components that might be in an automotive ECU
-4. An executive summary
-5. A risk score (0-100)
+IMPORTANT INSTRUCTIONS:
+1. Generate realistic vulnerabilities with EXACT line numbers and code snippets from the content shown
+2. For SBOM components, LINK any detected CVEs to the specific component that has them
+3. SCAN FOR PII: email addresses, phone numbers, IP addresses, names, device IDs stored in code
+4. SCAN FOR SECRETS: API keys, passwords, tokens, private keys, certificates, hardcoded credentials
+5. Use the LATEST compliance framework versions in your results
 
 Return JSON in this exact format:
 {
@@ -92,21 +121,21 @@ Return JSON in this exact format:
       "description": "detailed description",
       "affected_component": "filename.c",
       "affected_function": "function_name()",
-      "code_snippet": "example vulnerable code",
-      "line_number": number,
+      "code_snippet": "exact vulnerable code from content",
+      "line_number": exact_line_number,
       "detection_method": "llm|semgrep|yara|ghidra|capa",
-      "remediation": "how to fix",
+      "remediation": "how to fix with code example",
       "attack_vector": "how it could be exploited",
       "impact": "what damage could occur"
     }
   ],
   "compliance_results": [
     {
-      "framework": "MISRA C|ISO 21434|ISO 26262|AUTOSAR",
+      "framework": "MISRA C:2023|ISO 21434:2021|ISO 26262:2018|AUTOSAR R22-11|UNECE R155|UNECE R156",
       "rule_id": "Rule ID",
       "rule_description": "description",
       "status": "pass|fail|warning",
-      "details": "optional details"
+      "details": "specific violation details with line number"
     }
   ],
   "sbom_components": [
@@ -114,11 +143,33 @@ Return JSON in this exact format:
       "component_name": "library name",
       "version": "version",
       "license": "license type",
-      "source_file": "where found",
-      "vulnerabilities": ["CVE-XXX if any"]
+      "source_file": "where detected",
+      "vulnerabilities": ["CVE-XXXX-XXXX if this component has known vulnerabilities"],
+      "cpe": "cpe:2.3:a:vendor:product:version",
+      "purl": "pkg:type/namespace/name@version"
     }
   ],
-  "executive_summary": "2-3 paragraph professional summary for executives",
+  "pii_findings": [
+    {
+      "type": "email|phone|ip_address|name|device_id|location|other",
+      "value": "the actual PII found (redacted if sensitive)",
+      "location": "file:line_number",
+      "severity": "high|medium|low",
+      "context": "surrounding code context",
+      "remediation": "how to properly handle this PII"
+    }
+  ],
+  "secret_findings": [
+    {
+      "type": "api_key|password|token|private_key|certificate|aws_key|hardcoded_credential",
+      "value": "first 4 chars + *** (masked)",
+      "location": "file:line_number",
+      "severity": "critical|high|medium",
+      "context": "how it's used in code",
+      "remediation": "use secure key management, environment variables, or HSM"
+    }
+  ],
+  "executive_summary": "2-3 paragraph professional summary including PII/secret risks",
   "risk_score": 0-100
 }`;
 
@@ -138,6 +189,12 @@ Return JSON in this exact format:
   });
 
   if (!response.ok) {
+    if (response.status === 429) {
+      throw new Error('Rate limit exceeded. Please try again later.');
+    }
+    if (response.status === 402) {
+      throw new Error('AI credits exhausted. Please add funds to continue.');
+    }
     const errorText = await response.text();
     console.error('LLM API error:', response.status, errorText);
     throw new Error(`LLM API error: ${response.status}`);
@@ -184,7 +241,8 @@ Provide JSON with:
   "step_by_step_remediation": ["ordered steps to fix"],
   "code_fix_example": "example fixed code if applicable",
   "testing_recommendations": ["how to verify the fix"],
-  "iso_considerations": "ISO 26262/21434 considerations"
+  "iso_26262_asil": "ASIL level implication (A/B/C/D)",
+  "iso_21434_cal": "Cybersecurity Assurance Level"
 }`;
 
   const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
@@ -270,21 +328,23 @@ serve(async (req) => {
       scan_id: scanId,
       stage: 'analyzing',
       log_level: 'info',
-      message: 'Starting hybrid analysis: Static patterns + LLM vulnerability detection',
+      message: 'Starting hybrid analysis: Static patterns + LLM vulnerability + PII/Secret scanning',
     });
 
-    const rawResult = await analyzeBinaryWithLLM(fileContent, metadata, lovableApiKey) as any;
+    const rawResult = await analyzeBinaryWithLLM(fileContent, fileName, metadata, lovableApiKey) as any;
     
     // Normalize response keys (LLM may return snake_case or camelCase)
     const analysisResult = {
       vulnerabilities: rawResult.vulnerabilities || [],
       complianceResults: rawResult.complianceResults || rawResult.compliance_results || [],
       sbomComponents: rawResult.sbomComponents || rawResult.sbom_components || [],
+      piiFindings: rawResult.piiFindings || rawResult.pii_findings || [],
+      secretFindings: rawResult.secretFindings || rawResult.secret_findings || [],
       executiveSummary: rawResult.executiveSummary || rawResult.executive_summary || '',
       riskScore: rawResult.riskScore || rawResult.risk_score || 50,
     };
     
-    console.log(`LLM analysis returned: ${analysisResult.vulnerabilities.length} vulns, ${analysisResult.complianceResults.length} compliance results`);
+    console.log(`LLM analysis returned: ${analysisResult.vulnerabilities.length} vulns, ${analysisResult.complianceResults.length} compliance, ${analysisResult.piiFindings.length} PII, ${analysisResult.secretFindings.length} secrets`);
 
     // Stage 4: Enriching vulnerabilities
     await updateScanStatus(supabase, scanId, 'enriching', 75);
@@ -318,12 +378,68 @@ serve(async (req) => {
       });
     }
 
+    // Add PII findings as vulnerabilities
+    for (const pii of analysisResult.piiFindings) {
+      await supabase.from('vulnerabilities').insert({
+        scan_id: scanId,
+        cwe_id: 'CWE-359', // Exposure of Private Personal Information
+        severity: pii.severity || 'medium',
+        title: `PII Exposure: ${pii.type}`,
+        description: `Personal Identifiable Information (${pii.type}) detected in source code. Value: ${pii.value}`,
+        affected_component: pii.location?.split(':')[0] || fileName,
+        line_number: parseInt(pii.location?.split(':')[1]) || null,
+        code_snippet: pii.context,
+        detection_method: 'llm',
+        remediation: pii.remediation || 'Remove or encrypt PII. Use secure storage mechanisms.',
+        attack_vector: 'Data extraction through reverse engineering or memory dump',
+        impact: 'Privacy violation, GDPR/regulatory compliance issues',
+        status: 'new',
+      });
+    }
+
+    // Add Secret findings as vulnerabilities
+    for (const secret of analysisResult.secretFindings) {
+      await supabase.from('vulnerabilities').insert({
+        scan_id: scanId,
+        cwe_id: 'CWE-798', // Use of Hardcoded Credentials
+        severity: secret.severity || 'critical',
+        title: `Hardcoded Secret: ${secret.type}`,
+        description: `Hardcoded ${secret.type} detected. Masked value: ${secret.value}`,
+        affected_component: secret.location?.split(':')[0] || fileName,
+        line_number: parseInt(secret.location?.split(':')[1]) || null,
+        code_snippet: secret.context,
+        detection_method: 'llm',
+        remediation: secret.remediation || 'Use secure key management (HSM/TPM), environment variables, or encrypted configuration.',
+        attack_vector: 'Credential extraction via firmware analysis, enabling unauthorized access',
+        impact: 'Full system compromise, unauthorized access, lateral movement',
+        status: 'new',
+      });
+    }
+
     if (criticalVulns.length > 0) {
       await supabase.from('analysis_logs').insert({
         scan_id: scanId,
         stage: 'analyzing',
         log_level: 'error',
         message: `CRITICAL: Found ${criticalVulns.length} critical vulnerability(ies)`,
+      });
+    }
+
+    if (analysisResult.secretFindings.length > 0) {
+      await supabase.from('analysis_logs').insert({
+        scan_id: scanId,
+        stage: 'analyzing',
+        log_level: 'error',
+        message: `SECRETS DETECTED: Found ${analysisResult.secretFindings.length} hardcoded secrets/credentials`,
+      });
+    }
+
+    if (analysisResult.piiFindings.length > 0) {
+      await supabase.from('analysis_logs').insert({
+        scan_id: scanId,
+        stage: 'analyzing',
+        log_level: 'warning',
+        message: `PII DETECTED: Found ${analysisResult.piiFindings.length} instances of personal data`,
       });
     }
 
@@ -339,7 +455,7 @@ serve(async (req) => {
       });
     }
 
-    // Insert SBOM components
+    // Insert SBOM components with proper vulnerability linking
     for (const component of analysisResult.sbomComponents) {
       await supabase.from('sbom_components').insert({
         scan_id: scanId,
@@ -347,7 +463,7 @@ serve(async (req) => {
         version: component.version,
         license: component.license,
         source_file: component.source_file,
-        vulnerabilities: component.vulnerabilities,
+        vulnerabilities: component.vulnerabilities || [],
       });
     }
 
@@ -364,7 +480,7 @@ serve(async (req) => {
       scan_id: scanId,
       stage: 'complete',
       log_level: 'info',
-      message: `Analysis complete - Found ${analysisResult.vulnerabilities.length} vulnerabilities, Risk Score: ${analysisResult.riskScore}`,
+      message: `Analysis complete - Found ${analysisResult.vulnerabilities.length + analysisResult.piiFindings.length + analysisResult.secretFindings.length} total findings, Risk Score: ${analysisResult.riskScore}`,
     });
 
     console.log(`Analysis complete for scan ${scanId}`);
@@ -373,6 +489,8 @@ serve(async (req) => {
       success: true, 
       scanId,
       vulnerabilityCount: analysisResult.vulnerabilities.length,
+      piiCount: analysisResult.piiFindings.length,
+      secretCount: analysisResult.secretFindings.length,
       riskScore: analysisResult.riskScore,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

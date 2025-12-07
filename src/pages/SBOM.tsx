@@ -1,13 +1,23 @@
 import { useState, useMemo } from 'react';
-import { Database, Package, AlertTriangle, Shield } from 'lucide-react';
+import { Database, Package, AlertTriangle, Shield, Download } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { SeverityBadge } from '@/components/ui/severity-badge';
 import { ScanSelector } from '@/components/ui/scan-selector';
 import { useSBOMComponents } from '@/hooks/useScans';
 import { Skeleton } from '@/components/ui/skeleton';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 export default function SBOM() {
+  const [exporting, setExporting] = useState(false);
   const [selectedScan, setSelectedScan] = useState('all');
   const { data: allComponents = [], isLoading } = useSBOMComponents();
 
@@ -32,6 +42,40 @@ export default function SBOM() {
     if (vulnCount >= 2) return 'high';
     if (vulnCount >= 1) return 'medium';
     return 'low';
+  };
+
+  const handleExport = async (format: 'cyclonedx' | 'spdx' | 'swid') => {
+    if (selectedScan === 'all') {
+      toast.error('Please select a specific scan to export SBOM');
+      return;
+    }
+    
+    setExporting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('export-sbom', {
+        body: { scanId: selectedScan, format }
+      });
+
+      if (error) throw error;
+
+      // Create and download file
+      const blob = new Blob([data.data], { type: data.contentType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = data.filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast.success(`SBOM exported as ${format.toUpperCase()}`);
+    } catch (error) {
+      console.error('Export error:', error);
+      toast.error('Failed to export SBOM');
+    } finally {
+      setExporting(false);
+    }
   };
 
   if (isLoading) {
@@ -66,11 +110,32 @@ export default function SBOM() {
               </p>
             </div>
           </div>
-          <ScanSelector 
-            value={selectedScan} 
-            onChange={setSelectedScan}
-            className="w-[250px] bg-muted/50"
-          />
+          <div className="flex items-center gap-3">
+            <ScanSelector 
+              value={selectedScan} 
+              onChange={setSelectedScan}
+              className="w-[250px] bg-muted/50"
+            />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" disabled={exporting || selectedScan === 'all'}>
+                  <Download className="w-4 h-4 mr-2" />
+                  Export SBOM
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleExport('cyclonedx')}>
+                  CycloneDX (JSON)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport('spdx')}>
+                  SPDX (JSON)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport('swid')}>
+                  SWID (XML)
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
 
         {/* Stats */}
