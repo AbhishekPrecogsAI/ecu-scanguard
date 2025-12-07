@@ -1,14 +1,16 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Download, RefreshCw, Cpu, Calendar, Hash, HardDrive, Microchip, Loader2 } from 'lucide-react';
+import { ArrowLeft, Download, RefreshCw, Cpu, Calendar, Hash, HardDrive, Microchip, Loader2, Shield, Key, FileCode, ClipboardCheck } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/ui/status-badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PipelineStatus } from '@/components/scan/PipelineStatus';
 import { ExecutiveSummary } from '@/components/scan/ExecutiveSummary';
 import { VulnerabilityList } from '@/components/scan/VulnerabilityList';
 import { CodeViewer } from '@/components/scan/CodeViewer';
+import { SecretsFindings } from '@/components/scan/SecretsFindings';
 import { useScan, useVulnerabilities, useComplianceResults, useAnalysisLogs, useGenerateReport } from '@/hooks/useScans';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
@@ -140,6 +142,10 @@ export default function ScanDetails() {
     medium: vulnerabilities.filter(v => v.severity === 'medium').length,
     low: vulnerabilities.filter(v => v.severity === 'low').length,
   };
+
+  // Count secrets and PII findings
+  const secretsCount = vulnerabilities.filter(v => v.cwe_id === 'CWE-798').length;
+  const piiCount = vulnerabilities.filter(v => v.cwe_id === 'CWE-359').length;
 
   // Calculate compliance score
   const passCount = complianceResults.filter(r => r.status === 'pass').length;
@@ -310,14 +316,46 @@ export default function ScanDetails() {
           />
         )}
 
-        {/* Code Security Viewer - Groups by file with LLM analysis */}
+        {/* Tabbed Results (only show if complete) */}
         {scan.status === 'complete' && vulnerabilities.length > 0 && (
-          <CodeViewer vulnerabilities={vulnerabilities} fileName={scan.file_name} />
-        )}
+          <Tabs defaultValue="vulnerabilities" className="space-y-4">
+            <TabsList className="grid w-full grid-cols-3 lg:w-auto lg:inline-grid">
+              <TabsTrigger value="vulnerabilities" className="gap-2">
+                <Shield className="w-4 h-4" />
+                Vulnerabilities
+                <span className="ml-1 text-xs bg-muted px-1.5 py-0.5 rounded">
+                  {vulnerabilities.length - secretsCount - piiCount}
+                </span>
+              </TabsTrigger>
+              <TabsTrigger value="secrets" className="gap-2">
+                <Key className="w-4 h-4" />
+                Secrets & PII
+                {(secretsCount + piiCount) > 0 && (
+                  <span className="ml-1 text-xs bg-destructive/20 text-destructive px-1.5 py-0.5 rounded">
+                    {secretsCount + piiCount}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="code" className="gap-2">
+                <FileCode className="w-4 h-4" />
+                Code View
+              </TabsTrigger>
+            </TabsList>
 
-        {/* Detailed Vulnerability List */}
-        {scan.status === 'complete' && vulnerabilities.length > 0 && (
-          <VulnerabilityList vulnerabilities={vulnerabilities} />
+            <TabsContent value="vulnerabilities" className="space-y-4">
+              <VulnerabilityList 
+                vulnerabilities={vulnerabilities.filter(v => v.cwe_id !== 'CWE-798' && v.cwe_id !== 'CWE-359')} 
+              />
+            </TabsContent>
+
+            <TabsContent value="secrets" className="space-y-4">
+              <SecretsFindings vulnerabilities={vulnerabilities} />
+            </TabsContent>
+
+            <TabsContent value="code" className="space-y-4">
+              <CodeViewer vulnerabilities={vulnerabilities} fileName={scan.file_name} />
+            </TabsContent>
+          </Tabs>
         )}
 
         {/* Show message if scan is in progress */}
