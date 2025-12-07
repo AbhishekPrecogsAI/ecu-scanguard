@@ -1,5 +1,6 @@
 import { cn } from '@/lib/utils';
-import { Severity } from '@/types/scan';
+
+type Severity = 'critical' | 'high' | 'medium' | 'low' | 'info';
 
 interface SeverityBadgeProps {
   severity: Severity;
@@ -8,7 +9,13 @@ interface SeverityBadgeProps {
   className?: string;
 }
 
-const severityConfig = {
+const severityConfig: Record<Severity, {
+  label: string;
+  bgClass: string;
+  textClass: string;
+  borderClass: string;
+  dotClass: string;
+}> = {
   critical: {
     label: 'Critical',
     bgClass: 'bg-destructive/20',
@@ -36,6 +43,13 @@ const severityConfig = {
     textClass: 'text-success',
     borderClass: 'border-success/30',
     dotClass: 'bg-success',
+  },
+  info: {
+    label: 'Info',
+    bgClass: 'bg-blue-500/20',
+    textClass: 'text-blue-400',
+    borderClass: 'border-blue-500/30',
+    dotClass: 'bg-blue-400',
   },
 };
 

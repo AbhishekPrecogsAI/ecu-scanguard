@@ -1,11 +1,20 @@
 import { FileText, AlertTriangle, CheckCircle2, TrendingUp } from 'lucide-react';
-import { Scan } from '@/types/scan';
+import type { Scan } from '@/hooks/useScans';
 
 interface ExecutiveSummaryProps {
   scan: Scan;
+  vulnerabilityCounts: {
+    critical: number;
+    high: number;
+    medium: number;
+    low: number;
+  };
+  complianceScore: number;
 }
 
-export function ExecutiveSummary({ scan }: ExecutiveSummaryProps) {
+export function ExecutiveSummary({ scan, vulnerabilityCounts, complianceScore }: ExecutiveSummaryProps) {
+  const riskScore = scan.risk_score || 0;
+  
   const getRiskColor = (score: number) => {
     if (score >= 80) return 'text-destructive';
     if (score >= 60) return 'text-warning';
@@ -19,6 +28,9 @@ export function ExecutiveSummary({ scan }: ExecutiveSummaryProps) {
     if (score >= 40) return 'Medium Risk';
     return 'Low Risk';
   };
+
+  const totalVulns = vulnerabilityCounts.critical + vulnerabilityCounts.high + 
+                     vulnerabilityCounts.medium + vulnerabilityCounts.low;
 
   return (
     <div className="glass-card rounded-xl border border-border p-6">
@@ -40,13 +52,13 @@ export function ExecutiveSummary({ scan }: ExecutiveSummaryProps) {
             <span className="text-sm text-muted-foreground">Risk Score</span>
           </div>
           <div className="flex items-baseline gap-2">
-            <span className={`text-3xl font-bold font-mono ${getRiskColor(scan.riskScore || 0)}`}>
-              {scan.riskScore || 0}
+            <span className={`text-3xl font-bold font-mono ${getRiskColor(riskScore)}`}>
+              {riskScore}
             </span>
             <span className="text-sm text-muted-foreground">/ 100</span>
           </div>
-          <span className={`text-sm font-medium ${getRiskColor(scan.riskScore || 0)}`}>
-            {getRiskLabel(scan.riskScore || 0)}
+          <span className={`text-sm font-medium ${getRiskColor(riskScore)}`}>
+            {getRiskLabel(riskScore)}
           </span>
         </div>
 
@@ -57,11 +69,11 @@ export function ExecutiveSummary({ scan }: ExecutiveSummaryProps) {
           </div>
           <div className="flex items-baseline gap-2">
             <span className="text-3xl font-bold font-mono text-foreground">
-              {scan.complianceScore || 0}%
+              {complianceScore}%
             </span>
           </div>
           <span className="text-sm text-muted-foreground">
-            ISO 21434 / MISRA C
+            {scan.compliance_frameworks?.join(', ') || 'ISO 21434 / MISRA C'}
           </span>
         </div>
 
@@ -72,60 +84,25 @@ export function ExecutiveSummary({ scan }: ExecutiveSummaryProps) {
           </div>
           <div className="flex items-baseline gap-2">
             <span className="text-3xl font-bold font-mono text-foreground">
-              {scan.vulnerabilities.critical + scan.vulnerabilities.high + scan.vulnerabilities.medium + scan.vulnerabilities.low}
+              {totalVulns}
             </span>
           </div>
           <div className="flex items-center gap-2 text-xs">
-            <span className="text-destructive">{scan.vulnerabilities.critical} critical</span>
+            <span className="text-destructive">{vulnerabilityCounts.critical} critical</span>
             <span className="text-muted-foreground">•</span>
-            <span className="text-warning">{scan.vulnerabilities.high} high</span>
+            <span className="text-warning">{vulnerabilityCounts.high} high</span>
           </div>
         </div>
       </div>
 
       {/* Summary Text */}
-      {scan.executiveSummary && (
+      {scan.executive_summary && (
         <div className="prose prose-invert prose-sm max-w-none">
-          <p className="text-muted-foreground leading-relaxed">
-            {scan.executiveSummary}
+          <p className="text-muted-foreground leading-relaxed whitespace-pre-line">
+            {scan.executive_summary}
           </p>
         </div>
       )}
-
-      {/* Key Findings */}
-      <div className="mt-6">
-        <h4 className="text-sm font-medium text-foreground mb-3">Key Findings</h4>
-        <ul className="space-y-2">
-          <li className="flex items-start gap-2 text-sm text-muted-foreground">
-            <span className="w-1.5 h-1.5 rounded-full bg-destructive mt-1.5 shrink-0" />
-            Buffer overflow in CAN message handler requires immediate patching
-          </li>
-          <li className="flex items-start gap-2 text-sm text-muted-foreground">
-            <span className="w-1.5 h-1.5 rounded-full bg-destructive mt-1.5 shrink-0" />
-            Hardcoded cryptographic keys detected in secure boot module
-          </li>
-          <li className="flex items-start gap-2 text-sm text-muted-foreground">
-            <span className="w-1.5 h-1.5 rounded-full bg-warning mt-1.5 shrink-0" />
-            Missing UDS seed-key authentication for diagnostic services
-          </li>
-        </ul>
-      </div>
-
-      {/* Recommended Actions */}
-      <div className="mt-6 p-4 rounded-lg bg-primary/5 border border-primary/20">
-        <h4 className="text-sm font-medium text-primary mb-3">Recommended Actions</h4>
-        <ol className="space-y-2 list-decimal list-inside">
-          <li className="text-sm text-muted-foreground">
-            Replace hardcoded keys with HSM-stored keys and implement secure key management
-          </li>
-          <li className="text-sm text-muted-foreground">
-            Add bounds checking to all CAN message handlers
-          </li>
-          <li className="text-sm text-muted-foreground">
-            Implement ISO 14229 compliant seed-key authentication
-          </li>
-        </ol>
-      </div>
     </div>
   );
 }
