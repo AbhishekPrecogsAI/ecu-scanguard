@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Shield, Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -27,9 +27,9 @@ export default function Auth() {
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    
+
     const { error } = await signIn(email, password);
-    
+
     if (error) {
       toast({
         title: 'Sign in failed',
@@ -43,14 +43,14 @@ export default function Auth() {
       });
       navigate('/');
     }
-    
+
     setIsLoading(false);
   };
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    
+
     if (password.length < 6) {
       toast({
         title: 'Password too short',
@@ -62,7 +62,7 @@ export default function Auth() {
     }
 
     const { error } = await signUp(email, password);
-    
+
     if (error) {
       if (error.message.includes('already registered')) {
         toast({
@@ -83,33 +83,33 @@ export default function Auth() {
         description: 'You can now sign in with your credentials.',
       });
     }
-    
+
     setIsLoading(false);
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-background to-accent/5" />
-      
-      <Card className="w-full max-w-md relative glass-card border-border/50">
-        <CardHeader className="text-center space-y-4">
-          <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-glow">
-            <Shield className="w-8 h-8 text-white" />
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-purple-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/5 via-transparent to-transparent" />
+
+      <Card className="w-full max-w-md relative bg-white/80 backdrop-blur-sm border border-border/50 shadow-xl">
+        <CardHeader className="text-center space-y-4 pb-2">
+          <div className="mx-auto">
+            <img src="/precogs-logo.png" alt="Precogs AI" className="w-16 h-16" />
           </div>
           <div>
-            <CardTitle className="text-2xl font-bold">ECU Vulnerability Scanner</CardTitle>
+            <CardTitle className="text-2xl font-bold text-foreground">Precogs AI</CardTitle>
             <CardDescription className="text-muted-foreground">
-              Secure automotive binary analysis platform
+              Product Security Platform
             </CardDescription>
           </div>
         </CardHeader>
-        
+
         <Tabs defaultValue="signin" className="w-full">
           <TabsList className="grid w-full grid-cols-2 mx-4" style={{ width: 'calc(100% - 32px)' }}>
             <TabsTrigger value="signin">Sign In</TabsTrigger>
             <TabsTrigger value="signup">Sign Up</TabsTrigger>
           </TabsList>
-          
+
           <TabsContent value="signin">
             <form onSubmit={handleSignIn}>
               <CardContent className="space-y-4">
@@ -128,7 +128,7 @@ export default function Auth() {
                     />
                   </div>
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="password">Password</Label>
                   <div className="relative">
@@ -152,7 +152,7 @@ export default function Auth() {
                   </div>
                 </div>
               </CardContent>
-              
+
               <CardFooter>
                 <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading ? 'Signing in...' : 'Sign In'}
@@ -160,7 +160,7 @@ export default function Auth() {
               </CardFooter>
             </form>
           </TabsContent>
-          
+
           <TabsContent value="signup">
             <form onSubmit={handleSignUp}>
               <CardContent className="space-y-4">
@@ -179,7 +179,7 @@ export default function Auth() {
                     />
                   </div>
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="signup-password">Password</Label>
                   <div className="relative">
@@ -205,7 +205,7 @@ export default function Auth() {
                   <p className="text-xs text-muted-foreground">Minimum 6 characters</p>
                 </div>
               </CardContent>
-              
+
               <CardFooter>
                 <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading ? 'Creating account...' : 'Create Account'}

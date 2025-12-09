@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import Index from "./pages/Index";
 import Upload from "./pages/Upload";
 import Scans from "./pages/Scans";
+import ScanCentre from "./pages/ScanCentre";
 import ScanDetails from "./pages/ScanDetails";
 import Vulnerabilities from "./pages/Vulnerabilities";
 import Compliance from "./pages/Compliance";
@@ -16,6 +17,9 @@ import IMRDashboard from "./pages/IMRDashboard";
 import TARADashboard from "./pages/TARADashboard";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import Copilot from "./pages/Copilot";
+import Documentation from "./pages/Documentation";
+import Reports from "./pages/Reports";
 
 const queryClient = new QueryClient();
 
@@ -42,8 +46,9 @@ const AppRoutes = () => {
     <Routes>
       <Route path="/auth" element={<Auth />} />
       <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
-      <Route path="/upload" element={<ProtectedRoute><Upload /></ProtectedRoute>} />
-      <Route path="/scans" element={<ProtectedRoute><Scans /></ProtectedRoute>} />
+      <Route path="/scan-centre" element={<ProtectedRoute><ScanCentre /></ProtectedRoute>} />
+      <Route path="/upload" element={<ProtectedRoute><ScanCentre /></ProtectedRoute>} />
+      <Route path="/scans" element={<ProtectedRoute><ScanCentre /></ProtectedRoute>} />
       <Route path="/scans/:id" element={<ProtectedRoute><ScanDetails /></ProtectedRoute>} />
       <Route path="/vulnerabilities" element={<ProtectedRoute><Vulnerabilities /></ProtectedRoute>} />
       <Route path="/compliance" element={<ProtectedRoute><Compliance /></ProtectedRoute>} />
@@ -51,6 +56,9 @@ const AppRoutes = () => {
       <Route path="/imr" element={<ProtectedRoute><IMRDashboard /></ProtectedRoute>} />
       <Route path="/tara" element={<ProtectedRoute><TARADashboard /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+      <Route path="/copilot" element={<ProtectedRoute><Copilot /></ProtectedRoute>} />
+      <Route path="/documentation" element={<ProtectedRoute><Documentation /></ProtectedRoute>} />
+      <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

@@ -2,6 +2,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import type { Tables, TablesInsert } from '@/integrations/supabase/types';
+import { runMockAnalysis, runMockRepositoryAnalysis } from '@/services/mockAnalysis';
+
+// Set to true to use mock analysis (for development without deployed Edge Functions)
+const USE_MOCK_ANALYSIS = true;
 
 export type Scan = Tables<'scans'>;
 export type Vulnerability = Tables<'vulnerabilities'>;
@@ -17,7 +21,7 @@ export function useScans() {
         .from('scans')
         .select('*')
         .order('created_at', { ascending: false });
-      
+
       if (error) throw error;
       return data as Scan[];
     },
@@ -29,13 +33,13 @@ export function useScan(scanId: string | undefined) {
     queryKey: ['scan', scanId],
     queryFn: async () => {
       if (!scanId) return null;
-      
+
       const { data, error } = await supabase
         .from('scans')
         .select('*')
         .eq('id', scanId)
         .maybeSingle();
-      
+
       if (error) throw error;
       return data as Scan | null;
     },
@@ -51,11 +55,11 @@ export function useVulnerabilities(scanId?: string) {
         .from('vulnerabilities')
         .select('*')
         .order('created_at', { ascending: false });
-      
+
       if (scanId) {
         query = query.eq('scan_id', scanId);
       }
-      
+
       const { data, error } = await query;
       if (error) throw error;
       return data as Vulnerability[];
@@ -68,12 +72,12 @@ export function useComplianceResults(scanId: string | undefined) {
     queryKey: ['compliance', scanId],
     queryFn: async () => {
       if (!scanId) return [];
-      
+
       const { data, error } = await supabase
         .from('compliance_results')
         .select('*')
         .eq('scan_id', scanId);
-      
+
       if (error) throw error;
       return data as ComplianceResult[];
     },
@@ -89,11 +93,11 @@ export function useSBOMComponents(scanId?: string) {
         .from('sbom_components')
         .select('*')
         .order('component_name');
-      
+
       if (scanId) {
         query = query.eq('scan_id', scanId);
       }
-      
+
       const { data, error } = await query;
       if (error) throw error;
       return data as SBOMComponent[];
@@ -106,13 +110,13 @@ export function useAnalysisLogs(scanId: string | undefined) {
     queryKey: ['logs', scanId],
     queryFn: async () => {
       if (!scanId) return [];
-      
+
       const { data, error } = await supabase
         .from('analysis_logs')
         .select('*')
         .eq('scan_id', scanId)
         .order('created_at', { ascending: true });
-      
+
       if (error) throw error;
       return data as AnalysisLog[];
     },
@@ -131,7 +135,7 @@ export function useCreateScan() {
         .insert(scanData)
         .select()
         .single();
-      
+
       if (error) throw error;
       return data as Scan;
     },
@@ -153,14 +157,14 @@ export function useStartAnalysis() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: async ({ 
-      scanId, 
-      fileContent, 
-      fileName, 
-      metadata 
-    }: { 
-      scanId: string; 
-      fileContent: string; 
+    mutationFn: async ({
+      scanId,
+      fileContent,
+      fileName,
+      metadata
+    }: {
+      scanId: string;
+      fileContent: string;
       fileName: string;
       metadata: {
         ecuName: string;
@@ -172,10 +176,17 @@ export function useStartAnalysis() {
         complianceFrameworks: string[];
       };
     }) => {
+      if (USE_MOCK_ANALYSIS) {
+        // Use mock analysis for local development (don't await - run in background)
+        runMockAnalysis(scanId, fileName, metadata).catch(console.error);
+        return { success: true, message: 'Mock analysis started' };
+      }
+
+      // Use Edge Function for production
       const { data, error } = await supabase.functions.invoke('analyze-binary', {
         body: { scanId, fileContent, fileName, metadata },
       });
-      
+
       if (error) throw error;
       return data;
     },
@@ -196,16 +207,75 @@ export function useStartAnalysis() {
   });
 }
 
+export function useStartRepositoryAnalysis() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({
+      scanId,
+      gitUrl,
+      gitBranch,
+      gitProvider,
+      accessToken,
+      metadata
+    }: {
+      scanId: string;
+      gitUrl: string;
+      gitBranch: string;
+      gitProvider: 'github' | 'gitlab';
+      accessToken?: string;
+      metadata: {
+        ecuName: string;
+        ecuType: string;
+        version?: string;
+        manufacturer?: string;
+        architecture: string;
+        deepAnalysis: boolean;
+        complianceFrameworks: string[];
+      };
+    }) => {
+      if (USE_MOCK_ANALYSIS) {
+        // Use mock analysis for local development (don't await - run in background)
+        runMockRepositoryAnalysis(scanId, gitUrl, gitBranch, gitProvider, metadata).catch(console.error);
+        return { success: true, message: 'Mock repository analysis started' };
+      }
+
+      // Use Edge Function for production
+      const { data, error } = await supabase.functions.invoke('clone-repository', {
+        body: { scanId, gitUrl, gitBranch, gitProvider, accessToken, metadata },
+      });
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['scans'] });
+      toast({
+        title: 'Repository scan started',
+        description: 'Repository is being cloned and analyzed.',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Repository scan failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+}
+
 export function useUpdateVulnerabilityStatus() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: async ({ 
-      id, 
-      status 
-    }: { 
-      id: string; 
+    mutationFn: async ({
+      id,
+      status
+    }: {
+      id: string;
       status: 'new' | 'reopened' | 'fixed' | 'false_positive' | 'risk_accepted';
     }) => {
       const { data, error } = await supabase
@@ -214,7 +284,7 @@ export function useUpdateVulnerabilityStatus() {
         .eq('id', id)
         .select()
         .single();
-      
+
       if (error) throw error;
       return data;
     },
@@ -243,9 +313,9 @@ export function useGenerateReport() {
       const { data, error } = await supabase.functions.invoke('generate-report', {
         body: { scanId, format: format === 'pdf' ? 'json' : format },
       });
-      
+
       if (error) throw error;
-      
+
       // Return content based on format
       // The edge function returns raw content (string for markdown, object for JSON)
       return { content: data, format };
@@ -266,7 +336,7 @@ export function useFetchCVE() {
       const { data, error } = await supabase.functions.invoke('fetch-cve', {
         body: { cveId },
       });
-      
+
       if (error) throw error;
       return data;
     },
