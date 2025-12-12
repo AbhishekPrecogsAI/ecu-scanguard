@@ -94,7 +94,7 @@ export default function Auth() {
       <Card className="w-full max-w-md relative bg-white/80 backdrop-blur-sm border border-border/50 shadow-xl">
         <CardHeader className="text-center space-y-4 pb-2">
           <div className="mx-auto">
-            <img src="/precogs-logo.png" alt="Precogs AI" className="w-16 h-16" />
+            <img src="/logo.png" alt="Precogs AI" className="w-16 h-16" />
           </div>
           <div>
             <CardTitle className="text-2xl font-bold text-foreground">Precogs AI</CardTitle>

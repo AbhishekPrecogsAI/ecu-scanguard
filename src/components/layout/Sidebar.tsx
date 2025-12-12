@@ -42,7 +42,7 @@ export function Sidebar() {
       <div className="p-4 border-b border-sidebar-border">
         <div className="flex items-center gap-3">
           <img
-            src="/precogs-logo.png"
+            src="/logo.png"
             alt="Precogs AI"
             className="w-10 h-10"
           />
