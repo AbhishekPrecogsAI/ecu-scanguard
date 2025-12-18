@@ -1,73 +1,147 @@
-# Welcome to your Lovable project
+<p align="center">
+  <img src="public/logo.png" alt="Precogs AI" width="80" height="80">
+</p>
 
-## Project info
+<h1 align="center">ECU-SAST</h1>
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+<p align="center">
+  <strong>Automotive Static Application Security Testing Platform</strong>
+</p>
 
-## How can I edit this code?
+<p align="center">
+  <a href="#features">Features</a> •
+  <a href="#quick-start">Quick Start</a> •
+  <a href="#architecture">Architecture</a> •
+  <a href="#documentation">Documentation</a>
+</p>
 
-There are several ways of editing your application.
+---
 
-**Use Lovable**
+## Overview
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+**ECU-SAST** is an enterprise-grade Static Application Security Testing (SAST) platform purpose-built for the automotive industry. It provides comprehensive vulnerability detection, SBOM generation, and compliance validation for ECU firmware, embedded systems, and automotive software.
 
-Changes made via Lovable will be committed automatically to this repo.
+Built by [Precogs AI](https://www.precogs.ai), ECU-SAST combines traditional pattern-based analysis with AI-powered vulnerability detection to deliver actionable security insights with minimal false positives.
 
-**Use your preferred IDE**
+## Features
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### 🔍 Security Analysis
+- **AI-Powered Vulnerability Detection** — Leverages LLMs for context-aware security analysis
+- **Automotive-Specific Rules** — MISRA C/C++, AUTOSAR, ISO 21434 compliance checks
+- **Binary Analysis** — Firmware and ECU binary vulnerability scanning
+- **Multi-Format Support** — C, C++, Python, Rust, VBF, ARXML, HEX, S-Record
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+### 📦 Software Bill of Materials (SBOM)
+- Automated component discovery
+- License compliance tracking
+- Dependency vulnerability mapping
+- Export to CycloneDX and SPDX formats
 
-Follow these steps:
+### ✅ Compliance & Reporting
+- ISO 21434 cybersecurity compliance
+- UNECE WP.29 regulation support
+- PDF report generation
+- Risk scoring and prioritization
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+### 🤖 AI Copilot
+- Interactive security assistant
+- Remediation guidance
+- Code fix suggestions
+- Vulnerability explanation
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+## Quick Start
 
-# Step 3: Install the necessary dependencies.
-npm i
+### Prerequisites
+- Node.js 18+ and npm
+- Supabase account (for backend services)
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/Sharmarajnish/ecu-sast.git
+cd ecu-sast
+
+# Install dependencies
+npm install
+
+# Start development server
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+The application will be available at `http://localhost:8080`
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### Environment Setup
 
-**Use GitHub Codespaces**
+Create a `.env` file with your Supabase credentials:
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+```env
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
 
-## What technologies are used for this project?
+## Architecture
 
-This project is built with:
+```
+ecu-sast/
+├── src/
+│   ├── components/     # Reusable UI components
+│   ├── pages/          # Application pages
+│   ├── hooks/          # Custom React hooks
+│   ├── services/       # Analysis and API services
+│   └── integrations/   # Supabase client
+├── supabase/
+│   └── functions/      # Edge functions for scanning
+├── examples/           # Sample files for testing
+└── public/             # Static assets
+```
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+### Tech Stack
 
-## How can I deploy this project?
+| Layer | Technology |
+|-------|------------|
+| Frontend | React 18, TypeScript, Vite |
+| Styling | Tailwind CSS, shadcn/ui |
+| State | TanStack Query |
+| Backend | Supabase (Auth, Database, Edge Functions) |
+| AI | Google Gemini API |
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+## Documentation
 
-## Can I connect a custom domain to my Lovable project?
+Access the built-in documentation at `/documentation` in the running application, which includes:
 
-Yes, you can!
+- Getting started guides
+- API reference
+- Compliance frameworks
+- Integration tutorials
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+## Deployment
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+### Production Build
+
+```bash
+npm run build
+npm run preview
+```
+
+### Cloud Deployment
+
+The application is designed for deployment on:
+- Vercel
+- Netlify
+- Supabase Hosting
+- Any static hosting platform
+
+## Security
+
+For security vulnerabilities, please contact [security@precogs.ai](mailto:security@precogs.ai).
+
+## License
+
+Proprietary — © 2024 Precogs AI. All rights reserved.
+
+---
+
+<p align="center">
+  <strong>Built with ❤️ by <a href="https://www.precogs.ai">Precogs AI</a></strong>
+</p>
